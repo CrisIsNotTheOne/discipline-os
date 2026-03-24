@@ -130,12 +130,19 @@ function Stats() {
 /* COMPONENTS */
 
 const Bar = ({ value, color }) => (
-  <div style={{ background: "#1e293b", height: "10px", borderRadius: "10px" }}>
+  <div style={{
+    background: "rgba(255,255,255,0.08)",
+    height: "12px",
+    borderRadius: "12px",
+    overflow: "hidden"
+  }}>
     <div style={{
       width: `${value}%`,
-      background: color,
+      background: `linear-gradient(90deg, ${color}, #4ade80)`,
       height: "100%",
-      borderRadius: "10px"
+      borderRadius: "12px",
+      boxShadow: "0 0 10px rgba(34,197,94,0.6)",
+      transition: "0.3s"
     }} />
   </div>
 );
@@ -143,7 +150,7 @@ const Bar = ({ value, color }) => (
 /* STYLES */
 
 const appBg = {
-  background: "linear-gradient(135deg, #0f172a, #020617)",
+  background: "radial-gradient(circle at top, #0f172a, #020617)",
   minHeight: "100vh",
   display: "flex",
   justifyContent: "center",
@@ -152,52 +159,73 @@ const appBg = {
   fontFamily: "system-ui"
 };
 
-const title = {
-  textAlign: "center",
-  marginBottom: "15px"
-};
-
 const card = {
-  background: "rgba(30,41,59,0.8)",
-  padding: "15px",
-  borderRadius: "16px",
-  marginBottom: "15px"
+  background: "rgba(255,255,255,0.05)",
+  backdropFilter: "blur(12px)",
+  borderRadius: "20px",
+  padding: "18px",
+  marginBottom: "15px",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 0 25px rgba(0,0,0,0.4)"
 };
 
 const btn = (done) => ({
   width: "100%",
-  padding: "12px",
+  padding: "14px",
   marginTop: "10px",
-  borderRadius: "12px",
+  borderRadius: "14px",
   border: "none",
-  background: done ? "#22c55e" : "#334155",
-  color: "white"
+  background: done
+    ? "linear-gradient(135deg, #22c55e, #16a34a)"
+    : "rgba(255,255,255,0.08)",
+  color: "white",
+  fontWeight: "600",
+  letterSpacing: "0.5px",
+  transition: "0.2s",
+  boxShadow: done
+    ? "0 0 15px rgba(34,197,94,0.6)"
+    : "0 0 10px rgba(255,255,255,0.05)"
 });
 
 const endBtn = {
   width: "100%",
-  padding: "14px",
-  borderRadius: "14px",
+  padding: "16px",
+  borderRadius: "16px",
   border: "none",
-  background: "#22c55e",
+  background: "linear-gradient(135deg, #22c55e, #4ade80)",
   color: "white",
-  marginTop: "15px"
+  fontWeight: "700",
+  fontSize: "16px",
+  marginTop: "15px",
+  boxShadow: "0 0 20px rgba(34,197,94,0.7)"
+};
+
+const title = {
+  textAlign: "center",
+  marginBottom: "20px",
+  fontSize: "28px",
+  fontWeight: "700",
+  letterSpacing: "1px"
 };
 
 const nav = {
   position: "fixed",
-  bottom: 0,
-  left: 0,
-  right: 0,
-  background: "#1e293b",
+  bottom: "10px",
+  left: "10px",
+  right: "10px",
+  background: "rgba(30,41,59,0.8)",
+  backdropFilter: "blur(12px)",
   display: "flex",
   justifyContent: "space-around",
-  padding: "10px"
+  padding: "12px",
+  borderRadius: "20px",
+  border: "1px solid rgba(255,255,255,0.1)"
 };
 
 const navBtn = {
   background: "none",
   border: "none",
   color: "white",
-  fontSize: "16px"
+  fontSize: "15px",
+  fontWeight: "600"
 };
