@@ -1,231 +1,357 @@
-import { useState, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
+import { useState, useEffect, useMemo } from "react";
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer
+} from "recharts";
+
+/* ----------------------- UTIL ----------------------- */
+
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+const calcScore = ({ workout, study, protein }, goals) => {
+  const a = workout ? 1 : 0;
+  const b = study >= goals.study ? 1 : 0;
+  const c = protein >= goals.protein ? 1 : 0;
+  return Math.round(((a + b + c) / 3) * 100);
+};
+
+const levelFromXp = (xp) => {
+  const level = Math.floor(xp / 100);
+  const current = xp % 100;
+  return { level, current };
+};
+
+/* ----------------------- STORAGE ----------------------- */
+
+const load = (k, d) => JSON.parse(localStorage.getItem(k)) ?? d;
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+/* ----------------------- APP ----------------------- */
 
 export default function App() {
   const [page, setPage] = useState("home");
 
+  useEffect(() => {
+    // PWA install hook
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      window.deferredPrompt = e;
+    });
+  }, []);
+
   return (
-    <div style={appBg}>
-      <div style={{ maxWidth: "400px", width: "100%" }}>
+    <div style={bg}>
+      <div style={container}>
         {page === "home" && <Home />}
         {page === "stats" && <Stats />}
+        {page === "settings" && <Settings />}
 
-        <div style={nav}>
-          <button onClick={() => setPage("home")} style={navBtn}>Home</button>
-          <button onClick={() => setPage("stats")} style={navBtn}>Stats</button>
-        </div>
+        <nav style={nav}>
+          <NavBtn label="Home" onClick={() => setPage("home")} />
+          <NavBtn label="Stats" onClick={() => setPage("stats")} />
+          <NavBtn label="Settings" onClick={() => setPage("settings")} />
+        </nav>
       </div>
     </div>
   );
 }
 
-function Home() {
-  const [workout, setWorkout] = useState(false);
-  const [study, setStudy] = useState(0);
-  const [protein, setProtein] = useState(0);
+/* ----------------------- HOME ----------------------- */
 
+function Home() {
+  const [state, setState] = useState(() =>
+    load("state", {
+      workout: false,
+      study: 0,
+      protein: 0,
+      xp: 0,
+      streak: 0,
+      lastDate: todayStr(),
+    })
+  );
+
+  const [goals, setGoals] = useState(() =>
+    load("goals", { study: 3, protein: 130 })
+  );
+
+  // Daily reset
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("discipline"));
-    if (saved) {
-      setWorkout(saved.workout || false);
-      setStudy(saved.study || 0);
-      setProtein(saved.protein || 0);
+    if (state.lastDate !== todayStr()) {
+      setState((s) => ({
+        ...s,
+        workout: false,
+        study: 0,
+        protein: 0,
+        lastDate: todayStr(),
+      }));
     }
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(
-      "discipline",
-      JSON.stringify({ workout, study, protein })
-    );
-  }, [workout, study, protein]);
+  useEffect(() => save("state", state), [state]);
+  useEffect(() => save("goals", goals), [goals]);
 
-  const completed =
-    (workout ? 1 : 0) +
-    (study >= 3 ? 1 : 0) +
-    (protein >= 130 ? 1 : 0);
+  const score = useMemo(() => calcScore(state, goals), [state, goals]);
+  const { level, current } = levelFromXp(state.xp);
 
-  const score = (completed / 3) * 100;
+  const insights = useMemo(() => {
+    const history = load("history", []);
+    const last7 = history.slice(-7);
+    if (!last7.length) return ["Start strong today."];
+    const avg =
+      last7.reduce((a, b) => a + b.score, 0) / last7.length;
+
+    return [
+      avg > 70
+        ? "Strong week 🔥"
+        : "Push harder this week",
+      state.protein < goals.protein
+        ? "Protein lagging"
+        : "Protein on track",
+    ];
+  }, [state, goals]);
 
   const endDay = () => {
-    const history = JSON.parse(localStorage.getItem("history")) || [];
-    const today = new Date().toLocaleDateString();
+    const history = load("history", []);
+    const today = todayStr();
 
-    // remove duplicate same day
-    const filtered = history.filter((item) => item.date !== today);
+    const filtered = history.filter((h) => h.date !== today);
+    filtered.push({ date: today, score });
 
-    filtered.push({
-      date: today,
-      score: Math.floor(score)
-    });
+    save("history", filtered);
 
-    localStorage.setItem("history", JSON.stringify(filtered));
+    const success = score === 100;
 
-    // reset
-    setWorkout(false);
-    setStudy(0);
-    setProtein(0);
+    setState((s) => ({
+      ...s,
+      xp: success ? s.xp + 50 : s.xp,
+      streak: success ? s.streak + 1 : 0,
+      workout: false,
+      study: 0,
+      protein: 0,
+      lastDate: today,
+    }));
+
+    alert(success ? "Perfect Day 🔥" : "Lock in tomorrow");
   };
 
+  const progressColor =
+    score > 80 ? "#22c55e" :
+    score > 50 ? "#facc15" :
+    "#ef4444";
+
   return (
-    <div style={{ paddingBottom: "70px" }}>
+    <div style={pageWrap}>
       <h1 style={title}>Discipline OS</h1>
 
-      <div style={card}>
+      <Card>
+        <h3>Level {level}</h3>
+        <Bar value={current} color="#3b82f6" />
+        <p>{current}/100 XP</p>
+        <p>🔥 {state.streak} Day Streak</p>
+      </Card>
+
+      <Card>
         <h3>Daily Missions</h3>
 
-        <button onClick={() => setWorkout(!workout)} style={btn(workout)}>
-          Workout {workout ? "✓" : ""}
-        </button>
+        <Btn done={state.workout}
+          onClick={() =>
+            setState((s) => ({ ...s, workout: !s.workout }))
+          }>
+          Workout {state.workout && "✓"}
+        </Btn>
 
-        <button onClick={() => setStudy(study + 1)} style={btn(study >= 3)}>
-          Study {study}/3 hrs
-        </button>
+        <Btn done={state.study >= goals.study}
+          onClick={() =>
+            setState((s) => ({ ...s, study: s.study + 1 }))
+          }>
+          Study {state.study}/{goals.study}
+        </Btn>
 
-        <button onClick={() => setProtein(protein + 20)} style={btn(protein >= 130)}>
-          Protein {protein}/130g
-        </button>
-      </div>
+        <Btn done={state.protein >= goals.protein}
+          onClick={() =>
+            setState((s) => ({ ...s, protein: s.protein + 20 }))
+          }>
+          Protein {state.protein}/{goals.protein}
+        </Btn>
+      </Card>
 
-      <div style={card}>
+      <Card>
         <h3>Progress</h3>
-        <Bar value={score} color="#22c55e" />
-        <p>{Math.floor(score)}%</p>
-      </div>
+        <Bar value={score} color={progressColor} />
+        <p>{score}%</p>
+      </Card>
 
-      <button onClick={endDay} style={endBtn}>
-        End Day
-      </button>
+      <Card>
+        <h3>Insights</h3>
+        {insights.map((i, idx) => (
+          <p key={idx} style={{ opacity: 0.8 }}>{i}</p>
+        ))}
+      </Card>
+
+      <button style={endBtn} onClick={endDay}>End Day</button>
     </div>
   );
 }
+
+/* ----------------------- STATS ----------------------- */
 
 function Stats() {
-  const data = (JSON.parse(localStorage.getItem("history")) || []).slice(-7);
+  const data = load("history", []).slice(-14);
 
   return (
-    <div style={{ paddingBottom: "70px" }}>
-      <h1 style={title}>Stats</h1>
+    <div style={pageWrap}>
+      <h1 style={title}>Analytics</h1>
 
-      <div style={card}>
-        <h3>Weekly Progress</h3>
-
-        <LineChart width={320} height={220} data={data}>
-          <XAxis dataKey="date" tick={{ fill: "white", fontSize: 10 }} />
-          <YAxis tick={{ fill: "white" }} />
-          <Tooltip />
-          <Line
-            type="monotone"
-            dataKey="score"
-            stroke="#22c55e"
-            strokeWidth={3}
-            dot={{ r: 4 }}
-          />
-        </LineChart>
-      </div>
+      <Card>
+        <h3>Performance</h3>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={data}>
+            <XAxis dataKey="date" tick={{ fill: "white", fontSize: 10 }} />
+            <YAxis tick={{ fill: "white" }} />
+            <Tooltip />
+            <Line type="monotone" dataKey="score"
+              stroke="#22c55e" strokeWidth={3} />
+          </LineChart>
+        </ResponsiveContainer>
+      </Card>
     </div>
   );
 }
 
-/* COMPONENTS */
+/* ----------------------- SETTINGS ----------------------- */
+
+function Settings() {
+  const [goals, setGoals] = useState(() =>
+    load("goals", { study: 3, protein: 130 })
+  );
+
+  useEffect(() => save("goals", goals), [goals]);
+
+  return (
+    <div style={pageWrap}>
+      <h1 style={title}>Settings</h1>
+
+      <Card>
+        <h3>Goals</h3>
+
+        <input
+          type="number"
+          value={goals.study}
+          onChange={(e) =>
+            setGoals({ ...goals, study: +e.target.value })
+          }
+        />
+
+        <input
+          type="number"
+          value={goals.protein}
+          onChange={(e) =>
+            setGoals({ ...goals, protein: +e.target.value })
+          }
+        />
+      </Card>
+    </div>
+  );
+}
+
+/* ----------------------- COMPONENTS ----------------------- */
+
+const Card = ({ children }) => <div style={card}>{children}</div>;
+
+const Btn = ({ children, onClick, done }) => (
+  <button
+    onClick={onClick}
+    style={btn(done)}
+    onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.94)")}
+    onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+    onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+  >
+    {children}
+  </button>
+);
 
 const Bar = ({ value, color }) => (
-  <div style={{
-    background: "rgba(255,255,255,0.08)",
-    height: "12px",
-    borderRadius: "12px",
-    overflow: "hidden"
-  }}>
+  <div style={barBg}>
     <div style={{
       width: `${value}%`,
       background: `linear-gradient(90deg, ${color}, #4ade80)`,
-      height: "100%",
-      borderRadius: "12px",
-      boxShadow: "0 0 10px rgba(34,197,94,0.6)",
-      transition: "0.3s"
+      height: "100%"
     }} />
   </div>
 );
 
-/* STYLES */
+const NavBtn = ({ label, onClick }) => (
+  <button onClick={onClick} style={navBtn}>{label}</button>
+);
 
-const appBg = {
-  background: "radial-gradient(circle at top, #0f172a, #020617)",
+/* ----------------------- STYLES ----------------------- */
+
+const bg = {
+  background: "radial-gradient(circle at top,#0f172a,#020617)",
   minHeight: "100vh",
   display: "flex",
   justifyContent: "center",
-  padding: "20px",
+  padding: 20,
   color: "white",
   fontFamily: "system-ui"
 };
 
+const container = { maxWidth: 420, width: "100%" };
+
+const pageWrap = { paddingBottom: 80 };
+
+const title = { textAlign: "center", marginBottom: 10 };
+
 const card = {
   background: "rgba(255,255,255,0.05)",
   backdropFilter: "blur(12px)",
-  borderRadius: "20px",
-  padding: "18px",
-  marginBottom: "15px",
-  border: "1px solid rgba(255,255,255,0.08)",
-  boxShadow: "0 0 25px rgba(0,0,0,0.4)"
+  borderRadius: 20,
+  padding: 18,
+  marginBottom: 15
 };
 
 const btn = (done) => ({
   width: "100%",
-  padding: "14px",
-  marginTop: "10px",
-  borderRadius: "14px",
+  padding: 14,
+  marginTop: 10,
+  borderRadius: 16,
   border: "none",
-  background: done
-    ? "linear-gradient(135deg, #22c55e, #16a34a)"
-    : "rgba(255,255,255,0.08)",
   color: "white",
-  fontWeight: "600",
-  letterSpacing: "0.5px",
-  transition: "0.2s",
-  boxShadow: done
-    ? "0 0 15px rgba(34,197,94,0.6)"
-    : "0 0 10px rgba(255,255,255,0.05)"
+  background: done ? "#22c55e" : "#334155",
+  transition: "0.2s"
 });
+
+const barBg = {
+  background: "#1e293b",
+  height: 10,
+  borderRadius: 10,
+  overflow: "hidden"
+};
 
 const endBtn = {
   width: "100%",
-  padding: "16px",
-  borderRadius: "16px",
+  padding: 16,
+  borderRadius: 16,
   border: "none",
-  background: "linear-gradient(135deg, #22c55e, #4ade80)",
-  color: "white",
-  fontWeight: "700",
-  fontSize: "16px",
-  marginTop: "15px",
-  boxShadow: "0 0 20px rgba(34,197,94,0.7)"
-};
-
-const title = {
-  textAlign: "center",
-  marginBottom: "20px",
-  fontSize: "28px",
-  fontWeight: "700",
-  letterSpacing: "1px"
+  background: "#22c55e",
+  marginTop: 10
 };
 
 const nav = {
   position: "fixed",
-  bottom: "10px",
-  left: "10px",
-  right: "10px",
-  background: "rgba(30,41,59,0.8)",
-  backdropFilter: "blur(12px)",
+  bottom: 10,
+  left: 10,
+  right: 10,
   display: "flex",
   justifyContent: "space-around",
-  padding: "12px",
-  borderRadius: "20px",
-  border: "1px solid rgba(255,255,255,0.1)"
+  background: "#1e293b",
+  padding: 10,
+  borderRadius: 20
 };
 
 const navBtn = {
   background: "none",
   border: "none",
-  color: "white",
-  fontSize: "15px",
-  fontWeight: "600"
+  color: "white"
 };
